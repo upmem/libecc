@@ -1,0 +1,7 @@
+Compile to generate reference patterns
+
+make LIBECC_NOSTDLIB=0
+
+Generate reference patterns
+cd build
+./ec_self_tests  vectors sign=ECDSA hash=SHA256 curve=SECP256R1 > reference_values.txt

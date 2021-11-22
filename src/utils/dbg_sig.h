@@ -20,6 +20,7 @@
 #include "print_buf.h"
 
 /* Macro to allow inner values of tests vectors print */
+#define VERBOSE_INNER_VALUES
 #ifdef VERBOSE_INNER_VALUES
 #ifndef EC_SIG_ALG
 #define EC_SIG_ALG "UNKNOWN_SIG_ALG"

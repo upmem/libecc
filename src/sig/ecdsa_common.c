@@ -368,6 +368,8 @@ int __ecdsa_sign_update(struct ec_sign_context *ctx,
 int __ecdsa_sign_finalize(struct ec_sign_context *ctx, u8 *sig, u8 siglen,
 			  ec_sig_alg_type key_type)
 {
+	ext_printf("\n__ecdsa_sign_finalize\n");
+
 	nn k, r, e, tmp, tmp2, s, kinv;
 #ifdef USE_SIG_BLINDING
 	/* b is the blinding mask */
@@ -419,8 +421,11 @@ int __ecdsa_sign_finalize(struct ec_sign_context *ctx, u8 *sig, u8 siglen,
 
 	dbg_nn_print("p", &(priv_key->params->ec_fp.p));
 	dbg_nn_print("q", &(priv_key->params->ec_gen_order));
+	ext_printf("priv key x\n");
 	dbg_priv_key_print("x", priv_key);
+	ext_printf("generation point x\n");
 	dbg_ec_point_print("G", &(priv_key->params->ec_gen));
+	ext_printf("public key x\n");
 	dbg_pub_key_print("Y", &(ctx->key_pair->pub_key));
 
 	/* Check given signature buffer length has the expected size */
@@ -680,6 +685,7 @@ int __ecdsa_sign_finalize(struct ec_sign_context *ctx, u8 *sig, u8 siglen,
 int __ecdsa_verify_init(struct ec_verify_context *ctx, const u8 *sig, u8 siglen,
 			ec_sig_alg_type key_type)
 {
+	ext_printf("\n__ecdsa_verify_init\n");
 	bitcnt_t q_bit_len;
 	u8 q_len;
 	nn_src_t q;
@@ -782,7 +788,7 @@ int __ecdsa_verify_finalize(struct ec_verify_context *ctx,
 	nn *s, *r;
 	u8 hsize;
 	int ret;
-
+	ext_printf("\n__ecdsa_verify_finalize\n");
 	/*
 	 * First, verify context has been initialized and public
 	 * part too. This guarantees the context is an ECDSA
@@ -813,8 +819,9 @@ int __ecdsa_verify_finalize(struct ec_verify_context *ctx,
 		goto err;
 	}
 	ctx->h->hfunc_finalize(&(ctx->verify_data.ecdsa.h_ctx), hash);
+	dbg_pub_key_print("pub_key", (ctx->pub_key));
 	dbg_buf_print("h = H(m)", hash, hsize);
-
+	ext_printf("hash 0x%x\n", ((uint32_t *)hash)[0]);
 	/*
 	 * 3. If |h| > bitlen(q), set h to bitlen(q)
 	 *    leftmost bits of h.
