@@ -1,6 +1,6 @@
 Compile to generate reference patterns
 
-make 32 LIBECC_NOSTDLIB=0
+make LIBECC_NOSTDLIB=0
 
 Generate reference patterns
 cd build
