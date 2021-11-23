@@ -300,6 +300,8 @@ void prj_pt_neg(prj_pt_t out, prj_pt_src_t in)
  * coordinate is encoded in big endian. Size of buffer must exactly match
  * 3 * p_len.
  */
+#include "../external_deps/print.h"
+
 int prj_pt_import_from_buf(prj_pt_t pt,
 			   const u8 *pt_buf,
 			   u16 pt_buf_len, ec_shortw_crv_src_t crv)
@@ -314,6 +316,7 @@ int prj_pt_import_from_buf(prj_pt_t pt,
 	coord_len = BYTECEIL(ctx->p_bitlen);
 
 	if (pt_buf_len != (3 * coord_len)) {
+		ext_printf("prj_pt_import_from_buf error 1 pt_buf_len %d, 3 * coord_len %d\n", pt_buf_len, (3 * coord_len));
 		return -1;
 	}
 
@@ -332,6 +335,7 @@ int prj_pt_import_from_buf(prj_pt_t pt,
 	 */
 	if(prj_pt_is_on_curve(pt) != 1){
 		prj_pt_uninit(pt);
+		ext_printf("prj_pt_import_from_buf error 2\n");
 		return -1;
 	}
 

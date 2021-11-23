@@ -1218,11 +1218,66 @@ static int ec_verify_generated_contexts (){
 	pub_key_ptr->y.X.ctx = &params_ptr->ec_fp;
 	pub_key_ptr->y.Y.ctx = &params_ptr->ec_fp;
 	pub_key_ptr->y.Z.ctx = &params_ptr->ec_fp;
+	ext_printf("public key X first word 0x%x\n", pub_key_ptr->y.X.fp_val.val[0]);
+	ext_printf("public key Y first word 0x%x\n", pub_key_ptr->y.Y.fp_val.val[0]);
+	ext_printf("###ret %d\n", ret);
+
+
 	ret = ec_verify(ecdsa_secp256r1_test_vectors_expected_sig, sizeof(ecdsa_secp256r1_test_vectors_expected_sig), pub_key_ptr, msg, 3,
 				 ECDSA, SHA256, NULL, 0);
+	ext_printf("###ret %d\n", ret);
+
 	return ret;
 }
 
+ec_pub_key imported_pub_key;
+
+const u8 SECP256R1_ECDSA_public_key[] = { 
+    0x00, 0x01, 0x04, 0xd8, 0x14, 0x7d, 0x49, 0xe0,
+    0x7c, 0x32, 0x66, 0x59, 0x8b, 0x85, 0xd6, 0x61,
+    0x50, 0xda, 0xc3, 0x0d, 0x7b, 0x38, 0xe4, 0x3c,
+    0xc9, 0x40, 0x58, 0x23, 0x50, 0x1c, 0x70, 0x91,
+    0xdb, 0x86, 0x1c, 0x0e, 0x98, 0x17, 0xdf, 0x71,
+    0x76, 0x91, 0xed, 0x83, 0x3d, 0xe6, 0x1b, 0x7b,
+    0x64, 0xc9, 0x77, 0xb8, 0xf8, 0x37, 0xc2, 0xc1,
+    0x0a, 0xdf, 0xd9, 0xf3, 0x83, 0xce, 0x78, 0xc7,
+    0xf7, 0x89, 0x78, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x01};
+
+static const u8 signature[] = 
+{
+0x9b, 0x19, 0xcf, 0x16, 0xee, 0xa0, 0x0f, 0x03,  0xde, 0x7b, 0x59, 0x14, 0xa4, 0x4c, 0x9f, 0xad,
+0xe7, 0x7e, 0xf9, 0x9d, 0x2e, 0x78, 0x23, 0xf5,  0x63, 0xda, 0x75, 0xac, 0x1b, 0x15, 0x50, 0x28,
+0x00, 0xb8, 0x78, 0x72, 0x28, 0x22, 0xdd, 0x56,  0xd2, 0x14, 0xe9, 0x36, 0x92, 0xca, 0x58, 0x71,
+0x73, 0xe8, 0xaa, 0x2d, 0x8d, 0x6c, 0xfe, 0x9c,  0x1d, 0x91, 0xa3, 0xb5, 0x4b, 0x6f, 0xf4, 0x83
+};
+static int ec_import_public_key_and_verify () {
+	int ret = 0;
+	ext_printf("ec_import_public_key_and_verify\n");
+	ec_params *params_ptr = (ec_params *)&generated_params;
+	params_ptr->ec_curve.a.ctx = &params_ptr->ec_fp;
+	params_ptr->ec_curve.b.ctx = &params_ptr->ec_fp;
+	params_ptr->ec_curve.a_monty.ctx = &params_ptr->ec_fp;
+	params_ptr->ec_curve.b3.ctx = &params_ptr->ec_fp;
+	params_ptr->ec_curve.b_monty.ctx = &params_ptr->ec_fp;
+	params_ptr->ec_curve.b3_monty.ctx = &params_ptr->ec_fp;
+
+	params_ptr->ec_gen.X.ctx = &params_ptr->ec_fp;
+	params_ptr->ec_gen.Y.ctx = &params_ptr->ec_fp;
+	params_ptr->ec_gen.Z.ctx = &params_ptr->ec_fp;
+	params_ptr->ec_gen.crv = &params_ptr->ec_curve;
+	params_ptr->ec_alpha_montgomery.ctx = &params_ptr->ec_fp;
+	params_ptr->ec_gamma_montgomery.ctx = &params_ptr->ec_fp;
+	params_ptr->ec_alpha_edwards.ctx = &params_ptr->ec_fp;
+
+	ret = ec_pub_key_import_from_buf(&imported_pub_key, params_ptr, &SECP256R1_ECDSA_public_key[3], sizeof(SECP256R1_ECDSA_public_key) - 3, ECDSA);
+	ret = ec_verify(signature, sizeof(signature), &imported_pub_key, msg, 3,
+				 ECDSA, SHA256, NULL, 0);
+	return ret;
+}
 
 
 /*
@@ -1509,6 +1564,8 @@ int perform_known_test_vectors_test(const char *sig, const char *hash, const cha
 
 		ret =  ec_verify_generated_contexts();
 		ext_printf("with static patter %s\n", ret ? "failed" : "ok");
+		ret = ec_import_public_key_and_verify();
+		ext_printf("ec_import_public_key_and_verify ret %s\n", ret ? "failed" : "ok");
 
 #ifdef USE_CRYPTOFUZZ
 #if defined(WITH_SIG_ECDSA)

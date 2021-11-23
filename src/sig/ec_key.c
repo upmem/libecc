@@ -116,6 +116,7 @@ int pub_key_is_initialized_and_type(const ec_pub_key *A,
  * performed.
  * The buffer contains projective point coordinates.
  */
+#include "../external_deps/print.h"
 int ec_pub_key_import_from_buf(ec_pub_key *pub_key, const ec_params *params,
 			       const u8 *pub_key_buf, u8 pub_key_buf_len,
 			       ec_sig_alg_type ec_key_alg)
@@ -129,6 +130,7 @@ int ec_pub_key_import_from_buf(ec_pub_key *pub_key, const ec_params *params,
 				     pub_key_buf, pub_key_buf_len,
 				     (ec_shortw_crv_src_t)&(params->ec_curve));
 	if (ret < 0) {
+		ext_printf("ec_pub_key_import_from_buf error 1\n");
 		ret = -1;
 		goto err;
 	}
@@ -142,6 +144,7 @@ int ec_pub_key_import_from_buf(ec_pub_key *pub_key, const ec_params *params,
 	 */
 	if(!nn_isone(&(params->ec_gen_cofactor))){
 		if(check_prj_pt_order(&(pub_key->y), &(params->ec_gen_order))){
+			ext_printf("ec_pub_key_import_from_buf error 2\n");
 			ret = -1;
 			goto err;
 		}

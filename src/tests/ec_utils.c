@@ -1376,6 +1376,7 @@ int main(int argc, char *argv[])
 
 			printf("\targ4 = input file to verify\n");
 			printf("\targ5 = input file containing the public key (in raw binary format)\n");
+			printf("\targ6 = input file containing the signature\n");
 			printf("\t<arg7 (optional) = ancillary data to be used>\n");
 			return -1;
 		}

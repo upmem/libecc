@@ -806,6 +806,9 @@ int __ecdsa_verify_finalize(struct ec_verify_context *ctx,
 	/* Make things more readable */
 	G = &(ctx->pub_key->params->ec_gen);
 	Y = &(ctx->pub_key->y);
+	ext_printf("public key X first word 0x%x\n", Y->X.fp_val.val[0]);
+	ext_printf("public key Y first word 0x%x\n", Y->Y.fp_val.val[0]);
+
 	q = &(ctx->pub_key->params->ec_gen_order);
 	q_bit_len = ctx->pub_key->params->ec_gen_order_bitlen;
 	hsize = ctx->h->digest_size;
