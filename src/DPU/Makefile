@@ -10,12 +10,11 @@ CFLAGS += -I$(ROOT_DIR)/src/ -I$(ROOT_DIR)/src/external_deps
 WARNING_CFLAGS ?= -Wall -Wextra
 HOST_LDFLAGS = `dpu-pkg-config --libs dpu`
 HOST_CFLAGS = $(WARNING_CFLAGS) -std=c11 `dpu-pkg-config --cflags dpu` -O2
-ifdef SW
-HOST_CFLAGS += -DGEN_BY_SW=1 -DLOG_GENERATED=1
-endif
 ifdef SIG_KO
 HOST_CFLAGS += -DSIG_KO
 endif
+BIN_LDFLAGS += -Wl,-Tdpu.lds
+
 all:	dpu  host
 ifeq ($(WITH_DYNAMIC_LIBS),1)
 # If the user asked for dynamic libraries, compile versions of our binaries against them

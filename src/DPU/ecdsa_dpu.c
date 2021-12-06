@@ -2,172 +2,10 @@
 #include "libsig.h"
 #include <stdio.h>
 
-__host int ret;
+#include <stdbool.h>
+#include <stdint.h>
 
-#ifdef GEN_BY_SW
-#include "../tests/ec_self_tests_core.h"
-
-
-ec_params imported_params;
-static void print_nn(char *s, uint8_t *nn_ptr){
-    printf("\n%s.val: ", s);
-    for (uint32_t cnt =0; cnt < BIT_LEN_WORDS(NN_MAX_BIT_LEN)*4; cnt++) {
-        printf ("0x%02X ",*nn_ptr++);
-    }
-    printf("\n");
-    printf("%s.magic 0x%x\n", s, *(uint32_t*)nn_ptr);
-    nn_ptr +=4;
-    printf("%s.wlen 0x%x\n", s, *nn_ptr);
-    printf("\n");
-}
-
-static void print_fp(char *s, uint8_t *fp_ptr){
-    print_nn(s, fp_ptr);
-    fp_ptr += sizeof(nn);
-    printf("%s.ctx address 0x%x\n", s, *(uint32_t*)fp_ptr);
-    fp_ptr +=4;
-    printf("%s.magic 0x%x\n", s, *(uint32_t*)fp_ptr);
-}
-static void dump_params(ec_params *params){
-    printf ("\n\n params\n");
-
-    printf ("params address %x\n", *(uint32_t*)params);
-    printf ("params ec_fp context address %x\n", (uint32_t)&params->ec_fp);
-    printf ("params:\n");
-
-    print_nn ("\t\tec_fp.p", (uint8_t *)&params->ec_fp.p);
-
-    printf ("\tec_fp.p_bitlen 0x%x\n", params->ec_fp.p_bitlen);
-    printf ("\tec_fp.mpinv 0x%x\n", params->ec_fp.mpinv);
-
-    print_nn ("\t\tec_fp.r", (uint8_t *)&params->ec_fp.r);
-
-    print_nn ("\t\tec_fp.r_square", (uint8_t *)&params->ec_fp.r_square);
-
-
-
-    printf ("\tec_fp.p_shift 0x%x\n", params->ec_fp.p_shift);
-
-    print_nn ("\t\tec_fp.p_normalized", (uint8_t *)&params->ec_fp.p_normalized);
-
-    printf ("\tec_fp.p_reciprocal 0x%x\n", params->ec_fp.p_reciprocal);
-
-    printf ("\tec_fp.magic 0x%x\n", params->ec_fp.magic);
-
-    print_fp("\t\tec_curve.a: ", (uint8_t *)&params->ec_curve.a);
-    print_fp("\t\tec_curve.b: ", (uint8_t *)&params->ec_curve.b);
-    print_fp("\t\tec_curve.a_monty: ", (uint8_t *)&params->ec_curve.a_monty);
-    print_fp("\t\tec_curve.b3: ", (uint8_t *)&params->ec_curve.b3);
-    print_fp("\t\tec_curve.b_monty: ", (uint8_t *)&params->ec_curve.b_monty);
-    print_fp("\t\tec_curve.b3_monty: ", (uint8_t *)&params->ec_curve.b3_monty);
-    print_nn ("\t\tec_curve.order", (uint8_t *)&params->ec_curve.order);
-    printf ("\t\tec_curve.magic 0x%x\n", params->ec_curve.magic);
-
-    print_fp("\t\tec_gen.X: ", (uint8_t *)&params->ec_gen.X);
-    print_fp("\t\tec_gen.Y: ", (uint8_t *)&params->ec_gen.Y);
-    print_fp("\t\tec_gen.Z: ", (uint8_t *)&params->ec_gen.Y);
-    printf ("\t\t ec_gen.crv address 0x%x\n", (uint32_t)params->ec_gen.crv);
-    printf ("\t\t &params->ec_curve address 0x%x\n", (uint32_t)&params->ec_curve);
-    print_nn ("\t\tec_gen_order", (uint8_t *)&params->ec_gen_order);
-    printf ("\tec_gen_order_bitlen 0x%x\n", params->ec_gen_order_bitlen);
-    print_nn ("\t\tec_gen_cofactor", (uint8_t *)&params->ec_gen_cofactor);
-    print_fp("\t\tec_alpha_montgomery: ", (uint8_t *)&params->ec_alpha_montgomery);
-    print_fp("\t\tec_gamma_montgomery: ", (uint8_t *)&params->ec_gamma_montgomery);
-    print_fp("\t\tec_alpha_edwards: ", (uint8_t *)&params->ec_alpha_edwards);
-
-    printf ("\tcurve_type0x%x\n", params->curve_type);
-
-}
-
-static void dump_pub_key(ec_pub_key* pub_key_ptr){
-    printf ("pub_key\n");
-    printf ("\nkey_type 0%x\n", pub_key_ptr->key_type);
-    printf ("\nparams address 0%x\n", (uint32_t)pub_key_ptr->params);
-    print_fp("\t\ty.X: ", (uint8_t *)&pub_key_ptr->y.X);
-    print_fp("\t\ty.Y: ", (uint8_t *)&pub_key_ptr->y.Y);
-    print_fp("\t\ty.Z: ", (uint8_t *)&pub_key_ptr->y.Z);
-    printf ("\t\ty.crv address 0x%x\n", (uint32_t)pub_key_ptr->y.crv);
-    printf ("\t\ty.magic 0x%x\n", (uint32_t)pub_key_ptr->y.magic);
-    printf ("\nmagic 0%x\n", pub_key_ptr->magic);
-
-}
-
-/*
-static void dump_priv_key(ec_priv_key* priv_key_ptr){
-    printf ("priv_key\n");
-    printf ("\nkey_type 0%x\n", priv_key_ptr->key_type);
-    printf ("\nparams address 0%x\n", (uint32_t)priv_key_ptr->params);
-    print_nn("\t\tx: ", (uint8_t *)&priv_key_ptr->x);
-    printf ("\nmagic 0%x\n", priv_key_ptr->magic);
-
-}
-*/
-//#define LOG_GENERATED
-ec_key_pair kp;
-ec_pub_key imported_pub_key;
-
-
-
-/*
-* This is the format output of the ./ec_utils  gen_keys SECP256R1 ECDSA key
-* It contain metadata as followings:
-* - One byte = the key type (public or private) - it must be 0x00
-* - One byte = the algorithm type (ECDSA, ECKCDSA, ...) - it must be 0x01
-* - One byte = the curve type (FRP256V1, ...) - it must be 0x04
-* Additionally the size must to be (3 * ECC point size) + metadata_size
-*/
-const u8 SECP256R1_ECDSA_public_key[] = {
-    0x00, 0x01, 0x04, 0xd8, 0x14, 0x7d, 0x49, 0xe0,
-    0x7c, 0x32, 0x66, 0x59, 0x8b, 0x85, 0xd6, 0x61,
-    0x50, 0xda, 0xc3, 0x0d, 0x7b, 0x38, 0xe4, 0x3c,
-    0xc9, 0x40, 0x58, 0x23, 0x50, 0x1c, 0x70, 0x91,
-    0xdb, 0x86, 0x1c, 0x0e, 0x98, 0x17, 0xdf, 0x71,
-    0x76, 0x91, 0xed, 0x83, 0x3d, 0xe6, 0x1b, 0x7b,
-    0x64, 0xc9, 0x77, 0xb8, 0xf8, 0x37, 0xc2, 0xc1,
-    0x0a, 0xdf, 0xd9, 0xf3, 0x83, 0xce, 0x78, 0xc7,
-    0xf7, 0x89, 0x78, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x00, 0x00, 0x01};
-
-
-int generate_by_sw (void) {
-    const ec_test_case *c = &ecdsa_secp256r1_test_case;
-    printf ("let's start\n");
-    import_params(&imported_params, c->ec_str_p);
-
-    ret = ec_pub_key_import_from_buf(&imported_pub_key, &imported_params, &SECP256R1_ECDSA_public_key[3], sizeof(SECP256R1_ECDSA_public_key) - 3, ECDSA);
-
-    dump_params(&imported_params);
-
-    dump_pub_key(&imported_pub_key);
-#ifdef LOG_GENERATED
-    printf ("static uint8_t params[] = {");
-    for (uint32_t cnt =0; cnt < sizeof(ec_params); cnt++) {
-        if(cnt %8 == 0){
-            printf("\n");
-        }
-        printf ("0x%02X, ",((uint8_t *)&imported_params)[cnt]);
-    }
-    printf ("\n};\n");
-    printf ("uint8_t pub_key[]= {");
-
-    for (uint32_t cnt =0; cnt < sizeof(ec_pub_key); cnt++) {
-        if(cnt %8 == 0){
-            printf("\n");
-        }
-        printf ("0x%02X, ",((uint8_t *)&imported_pub_key)[cnt]);
-    }
-    printf ("\n};\n");
-
-    return ret;
-
-#endif
-}
-#else
 #include <mram.h>
-#include <perfcounter.h>
 
 static uint8_t params[] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
@@ -451,12 +289,6 @@ const u8 one[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
 };
 
-__mram_noinit const u8 mram_public_key[(256/8)*2];
-
-/* SHA-256 of "abc" msg */
-__mram_noinit const u8 mram_hash[SHA256_DIGEST_SIZE];
-__mram_noinit static const u8 mram_signature[(256/8)*2];
-
 int ecdsa_signature_verification_digest (const u8 *sig, const u8 *pub_key,
               const u8 *hash)
 {
@@ -579,21 +411,32 @@ err:
     return ret;
 }
 
-__host perfcounter_t cycles;
-__host uint32_t clock_per_sec;
-#endif
+
+#define DATA_SIZE ((256/8)*5)
+#define MAX_STRING_SIZE 128
+typedef struct {
+	unsigned int string_size;
+	uint8_t		 data[MAX_STRING_SIZE] __dma_aligned;
+	uint8_t		 shared_data[DATA_SIZE] __dma_aligned;
+	int64_t 	 ret;__dma_aligned
+	uint8_t		 code[] __dma_aligned;
+} mram_t;
+
+__mram_noinit mram_t mram;
+extern __mram_ptr void *__sys_sec_mram_start;
+#define CACHE_SIZE 8
 
 int main (void){
-#ifdef GEN_BY_SW
-    ret = generate_by_sw();
-#else
-    __dma_aligned const u8 pub_key[(256/8)*2];
-    __dma_aligned const u8 hash[SHA256_DIGEST_SIZE];
-    __dma_aligned const u8 signature[(256/8)*2];
+    __mram_ptr void *shared_data_offset;
+    shared_data_offset = mram.shared_data;
+    int64_t ret;
+    __dma_aligned uint8_t local_cache[DATA_SIZE];
 
-    mram_read(mram_public_key, (void *)pub_key, sizeof(pub_key));
-    mram_read(mram_hash, (void *)hash, sizeof(hash));
-    mram_read(mram_signature, (void *)signature, sizeof(signature));
+    mram_read(shared_data_offset, (void *)local_cache, sizeof(local_cache));
+
+    uint8_t *pub_key = local_cache;
+    uint8_t *hash = &local_cache[(256/8)*2];
+    uint8_t *signature = &local_cache[(256/8)*2 + SHA256_DIGEST_SIZE];
 
     ec_params *params_ptr = (ec_params *)&params;
     params_ptr->ec_curve.a.ctx = &params_ptr->ec_fp;
@@ -611,15 +454,15 @@ int main (void){
     params_ptr->ec_gamma_montgomery.ctx = &params_ptr->ec_fp;
     params_ptr->ec_alpha_edwards.ctx = &params_ptr->ec_fp;
 
-    (void) perfcounter_config(COUNT_CYCLES, true);
 
     ret = ecdsa_signature_verification_digest (signature, pub_key,
               hash);
+    char string [8] = "isnotOK.";
+    if (ret == 0) {
+        strcpy(string, "isOKnow.");
+    }
+    mram_write(string, __sys_sec_mram_start, sizeof(string));
 
-    cycles = perfcounter_get();
-    clock_per_sec =  CLOCKS_PER_SEC;
-#endif
-    return 1;
-
+    return 0;
 }
 

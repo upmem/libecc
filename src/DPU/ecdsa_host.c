@@ -2,7 +2,23 @@
 #include <stdio.h>
 
 #include <dpu.h>
-#include <dpu_log.h>
+#include <dpu_management.h>
+#include <assert.h>
+#include <fcntl.h>
+#include <linux/mman.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <alloca.h>
+
+#include "pim.h"
+
 
 #ifndef DPU_BINARY
 #define DPU_BINARY "./ecdsa_dpu"
@@ -46,42 +62,131 @@ static const uint8_t signature_ko[] =
     0x73, 0xe8, 0xaa, 0x2d, 0x8d, 0x6c, 0xfe, 0x9c,  0x1d, 0x91, 0xa3, 0xb5, 0x4b, 0x6f, 0xf4, 0x81
 };
 #endif
+
+extern int usleep (__useconds_t __useconds);
+
+#define __dma_aligned __attribute__((aligned(8)))
+
+#define DATA_SIZE ((256/8)*5)
+#define MAX_STRING_SIZE 128
+
+typedef struct {
+	unsigned int string_size;
+	uint8_t		 data[MAX_STRING_SIZE] __dma_aligned;
+	uint8_t		 shared_data[DATA_SIZE] __dma_aligned;
+	int64_t 	 ret;__dma_aligned
+	uint8_t		 code[] __dma_aligned;
+} mram_t;
+
+static void prepare_data(mram_t *area)
+{
+	area->string_size = 1 + snprintf(area->data, MAX_STRING_SIZE, "%s: DPU mram mapped @%p", __TIME__, area);
+	memcpy(area->shared_data, public_key, sizeof(public_key));
+	memcpy(&area->shared_data[sizeof(public_key)], calculated_hash, sizeof(calculated_hash));
+#ifndef SIG_KO
+	memcpy(&area->shared_data[sizeof(public_key) + sizeof(calculated_hash)], signature_ok, sizeof(signature_ok));
+#else
+	memcpy(&area->shared_data[sizeof(public_key) + sizeof(calculated_hash)], signature_ko, sizeof(signature_ko));
+#endif
+	area->ret = ~0;
+}
+
+static void print_secure(int fd)
+{
+    printf("======================= Display secure memory =======================\n");
+    fflush(stdout);
+    usleep(20000);
+    if (ioctl(fd, PIM_IOCTL_SHOW_S_MRAM, NULL) != 0) {
+        printf("Failed to call TEE\n");
+    }
+    printf("=====================================================================\n");
+    fflush(stdout);
+}
+
 int main(void)
 {
-    struct dpu_set_t set, dpu;
-    int dpu_ret = 0xff;
-#ifndef GEN_BY_SW
-    uint32_t dpu_cycles = 0xAA;
-    uint32_t clock_per_sec = 0xAA;
-#endif
+    //struct dpu_set_t set;
+	mram_t *area1, *area2;
+	//unsigned int offset = 0;
+	//int dpu_id;
+	pim_params_t params;
+	int retval;
+	int fdpu;
+	int rankid;
+	int dpuid;
 
-    DPU_ASSERT(dpu_alloc(1, NULL, &set));
-    DPU_ASSERT(dpu_load(set, DPU_BINARY, NULL));
-    DPU_ASSERT(dpu_broadcast_to(set, "mram_public_key", 0, public_key, sizeof(public_key), DPU_XFER_DEFAULT));
-    DPU_ASSERT(dpu_broadcast_to(set, "mram_hash", 0, calculated_hash, sizeof(calculated_hash), DPU_XFER_DEFAULT));
-#ifndef SIG_KO
-    DPU_ASSERT(dpu_broadcast_to(set, "mram_signature", 0, signature_ok, sizeof(signature_ok), DPU_XFER_DEFAULT));
-#else
-    DPU_ASSERT(dpu_broadcast_to(set, "mram_signature", 0, signature_ko, sizeof(signature_ko), DPU_XFER_DEFAULT));
-#endif
-    DPU_ASSERT(dpu_launch(set, DPU_SYNCHRONOUS));
+	fdpu = open("/dev/pim", O_RDWR);
+	if (fdpu < 0) {
+		perror("Failed to open DPU device node");
+		exit(EXIT_FAILURE);
+	}
 
-    DPU_FOREACH (set, dpu) {
-#ifdef GEN_BY_SW
-        DPU_ASSERT(dpu_log_read(dpu, stdout));
-#endif
-        DPU_ASSERT(dpu_copy_from(dpu, "ret", 0, (uint8_t *)&dpu_ret, sizeof(dpu_ret)));
-        printf("ret value %d\n", dpu_ret);
-#ifndef GEN_BY_SW
-        DPU_ASSERT(dpu_copy_from(dpu, "cycles", 0, (uint8_t *)&dpu_cycles, sizeof(dpu_cycles)));
-        DPU_ASSERT(dpu_copy_from(dpu, "clock_per_sec", 0, (uint8_t *)&clock_per_sec, sizeof(clock_per_sec)));
-        printf("dpu_cycles %u\n", dpu_cycles);
-        printf("clock_per_sec %u\n", clock_per_sec);
-        printf("dpu_msec %u\n", dpu_cycles/(clock_per_sec/1000));
-#endif
-    }
+	// Try to get magic memory
+	void * va = mmap(NULL, 64U<<20, PROT_READ|PROT_WRITE, MAP_SHARED, fdpu, 0);
+	if ( va == MAP_FAILED ) perror("failed to get DPU memory");
+	else {
+		area1 = (mram_t*)(va);
+		area2 = (mram_t*)((unsigned long)va+(32U<<20));
+		prepare_data(area1);
+		prepare_data(area2);
+	}
 
-    DPU_ASSERT(dpu_free(set));
+	// Copy DPU program to MRAM
+	int fdbin = open(DPU_BINARY,O_RDONLY);
+	int readb = read(fdbin, area1->code, 32U<<20);
+	if ( readb ) {
+		lseek(fdbin, 0, SEEK_SET);
+		read(fdbin, area2->code, readb);
+	}
+	close(fdbin);
+	printf("are1->ret %ld\n", area1->ret);
+	printf("are2->ret %ld\n", area2->ret);
 
-    return 0;
+    // Load and run DPU program
+	params.arg1 = (uint64_t)(area1->code);
+	params.arg2 = (uint64_t)(area2->code);
+	retval = readb ? ioctl(fdpu, PIM_IOCTL_LOAD_DPU, &params) : -1;
+	if ( retval < 0 ) {
+		perror("Failed to control pim");
+	} else {
+		printf("Dpu load returned %ld\n", params.ret0);
+	}
+
+	sleep(20);
+	// Poll DPU1
+	params.arg1 = (uint64_t)area1;
+	retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
+	if ( retval < 0 ) {
+		perror("Failed to poll pim");
+	} else {
+		printf("Dpu %p status is %ld %ld\n", area1, params.ret0, params.ret1);
+	}
+
+	// Naive test for MRAM mux control
+	params.arg1 = (uint64_t)area1;
+	retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_MRAM, &params);
+	if ( retval < 0 ) {
+		perror("Failed to get mram");
+	} else {
+		printf("Dpu %p unmuxed its MRAM\n", area1);
+	}
+	printf("are1->ret %ld\n", area1->ret);
+
+
+	// Poll DPU2
+	params.arg1 = (uint64_t)area2;
+	retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
+	if ( retval < 0 ) {
+		perror("Failed to poll pim");
+	} else {
+		printf("Dpu %p status is %ld %ld\n", area2, params.ret0, params.ret1);
+	}
+
+	printf("are2->ret %ld\n", area2->ret);
+
+	print_secure(fdpu);
+
+	// Exit gracefully
+	close(fdpu);
+    exit(EXIT_SUCCESS);
 }

@@ -1,5 +1,7 @@
 ECDSA signature verification
 
+    source /usr/upmem_env.sh hw && modprobe pim
+
     Compile the ecc lib
     make 32  CC=dpu-upmem-dpurte-clang
 
@@ -9,15 +11,5 @@ ECDSA signature verification
     Compile the DPU binary
     make 32  CC=dpu-upmem-dpurte-clang -C src/DPU/
 
-Build params and pub key patterns
-    Compile the ecc lib
-    make 32  CC=dpu-upmem-dpurte-clang SW=1
-
-    Check the dump file
-    llvm-objdump -x  src/DPU/ecdsa_dpu > ecdsa_dpu.objdump
-
-    Compile the DPU binary
-    make 32  CC=dpu-upmem-dpurte-clang SW=1 -C src/DPU/
-
-Execute the DPU binary
-cd src/DPU/ && ./ecdsa_host  && cd -
+    Execute the DPU binary
+    cd src/DPU/ && ./ecdsa_host  && cd -
