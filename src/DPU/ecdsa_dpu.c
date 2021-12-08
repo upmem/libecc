@@ -1,12 +1,11 @@
-#include "print.h"
 #include "libsig.h"
 #include <stdio.h>
-
-#include <stdbool.h>
-#include <stdint.h>
+#include <string.h>
 
 #include <mram.h>
 #include "dpu_jump.h"
+
+/* ECC P-256 context */
 static uint8_t params[] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
@@ -289,7 +288,8 @@ const u8 one[] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01
 };
 
-int ecdsa_signature_verification_digest (const u8 *sig, const u8 *pub_key,
+/* ECDSA P-256 signature verification - input digest */
+static int ecdsa_signature_verification_digest (const u8 *sig, const u8 *pub_key,
               const u8 *hash)
 {
     prj_pt uG, vY, W_prime;
@@ -412,18 +412,15 @@ err:
 }
 
 
-#define DATA_SIZE ((256/8)*5)
-#define MAX_STRING_SIZE 128
+#define SIG_DATA_SIZE ((256/8)*5)
 #define APP_MAX_SIZE (1024)
+#define P256_PUB_KEY_SIZE ((256/8)*2)
 typedef struct {
-	unsigned int string_size;
-	uint8_t		 data[MAX_STRING_SIZE] __dma_aligned;
-	uint8_t		 shared_data[DATA_SIZE] __dma_aligned;
+	uint8_t		 sig_data[SIG_DATA_SIZE] __dma_aligned;
 	unsigned int app_text_size;
 	uint8_t		 app_text[APP_MAX_SIZE]  __dma_aligned;
 	unsigned int app_data_size;
 	uint8_t		 app_data[APP_MAX_SIZE]  __dma_aligned;
-	int64_t 	 ret;__dma_aligned
 	uint8_t		 code[] __dma_aligned;
 } mram_t;
 
@@ -431,21 +428,18 @@ __mram_noinit mram_t mram;
 extern __mram_ptr void *__sys_sec_mram_start;
 
 
-#define CACHE_SIZE 8
-
 int main (void){
-    __mram_ptr void *shared_data_offset;
-    shared_data_offset = mram.shared_data;
-    int64_t ret;
-    __dma_aligned uint8_t local_cache[DATA_SIZE];
-
-    mram_read(shared_data_offset, (void *)local_cache, sizeof(local_cache));
-
-    uint8_t *pub_key = local_cache;
-    uint8_t *hash = &local_cache[(256/8)*2];
-    uint8_t *signature = &local_cache[(256/8)*2 + SHA256_DIGEST_SIZE];
-
+    __dma_aligned uint8_t local_sig_data[SIG_DATA_SIZE];
+    char string [8] = "Sig ver ";
+    uint8_t *pub_key, *hash, *signature;
     ec_params *params_ptr = (ec_params *)&params;
+
+    /* Read signature data from MRAM */
+    mram_read((__mram_ptr void *)mram.sig_data, (void *)local_sig_data, sizeof(local_sig_data));
+    pub_key = local_sig_data;
+    hash = &local_sig_data[P256_PUB_KEY_SIZE];
+    signature = &local_sig_data[P256_PUB_KEY_SIZE + SHA256_DIGEST_SIZE];
+
     params_ptr->ec_curve.a.ctx = &params_ptr->ec_fp;
     params_ptr->ec_curve.b.ctx = &params_ptr->ec_fp;
     params_ptr->ec_curve.a_monty.ctx = &params_ptr->ec_fp;
@@ -461,19 +455,13 @@ int main (void){
     params_ptr->ec_gamma_montgomery.ctx = &params_ptr->ec_fp;
     params_ptr->ec_alpha_edwards.ctx = &params_ptr->ec_fp;
 
-
-    ret = ecdsa_signature_verification_digest (signature, pub_key,
-              hash);
-    //ret = 0;
-    char string [8] = "Sig ver ";
-    mram_write(string, __sys_sec_mram_start, sizeof(string));
-    if (ret == 0) {
-        strcpy(string, "is OK\0");
+    if (ecdsa_signature_verification_digest (signature, pub_key, hash) == 0) {
         dpu_jump((uint32_t)mram.app_data, mram.app_data_size, (uint32_t) mram.app_text, mram.app_text_size);
     } else {
+        mram_write(string, __sys_sec_mram_start, sizeof(string));
         strcpy(string, "is bad\0");
+        mram_write(string, (__mram_ptr void *)((uint32_t)__sys_sec_mram_start + sizeof(string)), sizeof(string));
     }
-    mram_write(string, (__mram_ptr void *)((uint32_t)__sys_sec_mram_start + sizeof(string)), sizeof(string));
 
     return 0;
 }

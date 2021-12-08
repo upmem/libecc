@@ -8,8 +8,11 @@ ECDSA signature verification
     Check the dump file
     llvm-objdump -x  src/DPU/ecdsa_dpu > ecdsa_dpu.objdump
 
-    Compile the DPU binary
+    Compile the DPU and Host binary
     make 32  CC=dpu-upmem-dpurte-clang -C src/DPU/
+
+    Compile the DPU and Host binary wit a bad signature
+    make 32  CC=dpu-upmem-dpurte-clang SIG_KO=1 -C src/DPU/
 
     Execute the DPU binary
     cd src/DPU/ && ./ecdsa_host  && cd -

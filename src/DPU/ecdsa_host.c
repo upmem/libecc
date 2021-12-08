@@ -19,10 +19,9 @@
 
 #include "pim.h"
 
+#define DPU_CLUSTER_MEMORY_SIZE (64U<<20)
 
-#ifndef DPU_BINARY
 #define DPU_BINARY "./ecdsa_dpu"
-#endif
 #define APP_TEXT_BINARY "./hello_word_dpu.text"
 #define APP_DATA_BINARY "./hello_word_dpu.data"
 
@@ -69,56 +68,36 @@ extern int usleep (__useconds_t __useconds);
 
 #define __dma_aligned __attribute__((aligned(8)))
 
-#define DATA_SIZE ((256/8)*5)
-#define MAX_STRING_SIZE 128
+#define SIG_DATA_SIZE ((256/8)*5)
 #define APP_MAX_SIZE (1024)
 typedef struct {
-	unsigned int string_size;
-	uint8_t		 data[MAX_STRING_SIZE] __dma_aligned;
-	uint8_t		 shared_data[DATA_SIZE] __dma_aligned;
+	uint8_t		 sig_data[SIG_DATA_SIZE] __dma_aligned;
 	unsigned int app_text_size;
 	uint8_t		 app_text[APP_MAX_SIZE]  __dma_aligned;
 	unsigned int app_data_size;
 	uint8_t		 app_data[APP_MAX_SIZE]  __dma_aligned;
-	int64_t 	 ret;__dma_aligned
 	uint8_t		 code[] __dma_aligned;
 } mram_t;
 
 static void prepare_data(mram_t *area)
 {
-	area->string_size = 1 + snprintf(area->data, MAX_STRING_SIZE, "%s: DPU mram mapped @%p", __TIME__, area);
-	memcpy(area->shared_data, public_key, sizeof(public_key));
-	memcpy(&area->shared_data[sizeof(public_key)], calculated_hash, sizeof(calculated_hash));
+	int fdbin;
+	/* Copying signature data */
+	memcpy(area->sig_data, public_key, sizeof(public_key));
+	memcpy(&area->sig_data[sizeof(public_key)], calculated_hash, sizeof(calculated_hash));
 #ifndef SIG_KO
-	memcpy(&area->shared_data[sizeof(public_key) + sizeof(calculated_hash)], signature_ok, sizeof(signature_ok));
+	memcpy(&area->sig_data[sizeof(public_key) + sizeof(calculated_hash)], signature_ok, sizeof(signature_ok));
 #else
-	memcpy(&area->shared_data[sizeof(public_key) + sizeof(calculated_hash)], signature_ko, sizeof(signature_ko));
+	memcpy(&area->sig_data[sizeof(public_key) + sizeof(calculated_hash)], signature_ko, sizeof(signature_ko));
 #endif
-	int fdbin = open(APP_TEXT_BINARY,O_RDONLY);
+	/* Copying user application code */
+	fdbin = open(APP_TEXT_BINARY,O_RDONLY);
 	area->app_text_size = read(fdbin, area->app_text, APP_MAX_SIZE);
 	close(fdbin);
+	/* Copying user application data */
 	fdbin = open(APP_DATA_BINARY,O_RDONLY);
 	area->app_data_size = read(fdbin, area->app_data, APP_MAX_SIZE);
 	close(fdbin);
-	area->ret = ~0;
-
-/*	printf("======================= Display APP text =======================\n");
-	for (uint32_t i=0; i<area->app_text_size; i++) {
-		printf ("0x%X ", area->app_text[i]);
-		if (i%32 == 0) {
-			printf("\n");
-		}
-	}
-	printf("\n");
-    printf("======================= Display APP data =======================\n");
-	for (uint32_t i=0; i<area->app_data_size; i++) {
-		printf ("0x%X ", area->app_data[i]);
-		if (i%32 == 0) {
-			printf("\n");
-		}
-	}
-	printf("\n");
-*/
 }
 
 static void print_secure(int fd)
@@ -135,85 +114,79 @@ static void print_secure(int fd)
 
 int main(void)
 {
-    //struct dpu_set_t set;
 	mram_t *area1, *area2;
-	//unsigned int offset = 0;
-	//int dpu_id;
 	pim_params_t params;
 	int retval;
-	int fdpu;
-	int rankid;
-	int dpuid;
+	int fdpu, fdbin, readb;
 
+	// Open pim node
 	fdpu = open("/dev/pim", O_RDWR);
 	if (fdpu < 0) {
-		perror("Failed to open DPU device node");
+		perror("Failed to open /dev/pim device node");
 		exit(EXIT_FAILURE);
 	}
 
 	// Try to get magic memory
-	void * va = mmap(NULL, 64U<<20, PROT_READ|PROT_WRITE, MAP_SHARED, fdpu, 0);
-	if ( va == MAP_FAILED ) perror("failed to get DPU memory");
-	else {
+	void *va = mmap(NULL, DPU_CLUSTER_MEMORY_SIZE, PROT_READ|PROT_WRITE, MAP_SHARED, fdpu, 0);
+	if (va == MAP_FAILED ) {
+		perror("Failed to get DPU memory");
+		exit(EXIT_FAILURE);
+	} else {
 		area1 = (mram_t*)(va);
-		area2 = (mram_t*)((unsigned long)va+(32U<<20));
+		area2 = (mram_t*)((unsigned long)va+(DPU_CLUSTER_MEMORY_SIZE/2));
 		prepare_data(area1);
 		prepare_data(area2);
 	}
 
 	// Copy DPU program to MRAM
-	int fdbin = open(DPU_BINARY,O_RDONLY);
-	int readb = read(fdbin, area1->code, 32U<<20);
-	if ( readb ) {
-		lseek(fdbin, 0, SEEK_SET);
-		read(fdbin, area2->code, readb);
+	fdbin = open(DPU_BINARY,O_RDONLY);
+	if (fdbin < 0) {
+		perror("Failed to open DPU_BINARY");
+		exit(EXIT_FAILURE);
 	}
+
+	readb = read(fdbin, area1->code, (DPU_CLUSTER_MEMORY_SIZE/2));
+	if (readb == 0) {
+		perror("DPU_BINARY is empty");
+		exit(EXIT_FAILURE);
+	}
+	lseek(fdbin, 0, SEEK_SET);
+	read(fdbin, area2->code, readb);
 	close(fdbin);
-	printf("are1->ret %ld\n", area1->ret);
-	printf("are2->ret %ld\n", area2->ret);
 
     // Load and run DPU program
 	params.arg1 = (uint64_t)(area1->code);
 	params.arg2 = (uint64_t)(area2->code);
-	retval = readb ? ioctl(fdpu, PIM_IOCTL_LOAD_DPU, &params) : -1;
-	if ( retval < 0 ) {
+	retval = ioctl(fdpu, PIM_IOCTL_LOAD_DPU, &params);
+	if (retval < 0 ) {
 		perror("Failed to control pim");
+		exit(EXIT_FAILURE);
 	} else {
 		printf("Dpu load returned %ld\n", params.ret0);
 	}
 
-	/* Needed as polling doesn't work */
-	sleep(15);
 	// Poll DPU1
 	params.arg1 = (uint64_t)area1;
-	retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
-	if ( retval < 0 ) {
-		perror("Failed to poll pim");
-	} else {
-		printf("Dpu %p status is %ld %ld\n", area1, params.ret0, params.ret1);
-	}
-	printf("are1->ret %ld\n", area1->ret);
-
-	// Naive test for MRAM mux control
-/*	params.arg1 = (uint64_t)area1;
-	retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_MRAM, &params);
-	if ( retval < 0 ) {
-		perror("Failed to get mram");
-	} else {
-		printf("Dpu %p unmuxed its MRAM\n", area1);
-	}
-*/
+	do {
+		retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
+		if (retval < 0 ) {
+			perror("Failed to poll pim");
+			break;
+		}
+	} while (params.ret1 == 1);
+	printf("Dpu %p status is %ld %ld\n", area1, params.ret0, params.ret1);
 
 	// Poll DPU2
 	params.arg1 = (uint64_t)area2;
-	retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
-	if ( retval < 0 ) {
-		perror("Failed to poll pim");
-	} else {
-		printf("Dpu %p status is %ld %ld\n", area2, params.ret0, params.ret1);
+	do {
+		retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
+		if ( retval < 0 ) {
+			perror("Failed to poll pim");
+			break;
+		}
 	}
-
-	printf("are2->ret %ld\n", area2->ret);
+	while (params.ret1 == 1);
+	printf("Dpu %p status is %ld %ld\n", area2, params.ret0, params.ret1);
 
 	print_secure(fdpu);
 

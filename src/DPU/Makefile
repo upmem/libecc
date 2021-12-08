@@ -1,5 +1,8 @@
 HOST_CC = gcc
 DPU_CC = dpu-upmem-dpurte-clang
+DPU_OBJCPY = llvm-objcopy
+DPU_OBJDUMP = llvm-objdump
+
 
 ROOT_DIR=../..
 BUILD_DIR=$(ROOT_DIR)/build
@@ -23,15 +26,15 @@ endif
 
 dpu:
 	$(DPU_CC) $(BIN_CFLAGS) ecdsa_dpu.c $(ROOT_DIR)/src/external_deps/rand.c dpu_jump.c  $(LIBSIGN) $(BIN_LDFLAGS) -o ecdsa_dpu
-	llvm-objdump -xS  ecdsa_dpu > ecdsa_dpu.objdump
+	$(DPU_OBJDUMP) -xS  ecdsa_dpu > ecdsa_dpu.objdump
 
 host:
 	$(HOST_CC) $(HOST_CFLAGS) ecdsa_host.c $(HOST_LDFLAGS) -o ecdsa_host
 
 app:
 	$(DPU_CC) $(BIN_CFLAGS) hello_word.c $(BIN_LDFLAGS) -o hello_word_dpu
-	llvm-objcopy -O binary --only-section=.text hello_word_dpu hello_word_dpu.text
-	llvm-objcopy -O binary --only-section=.data hello_word_dpu hello_word_dpu.data
+	$(DPU_OBJCPY) -O binary --only-section=.text hello_word_dpu hello_word_dpu.text
+	$(DPU_OBJCPY) -O binary --only-section=.data hello_word_dpu hello_word_dpu.data
 
 clean:
 	@rm -f ecdsa_dpu  ecdsa_dpu.objdump ecdsa_host  hello_word_dpu  hello_word_dpu.text hello_word_dpu.data
