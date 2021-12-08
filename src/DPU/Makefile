@@ -15,19 +15,25 @@ HOST_CFLAGS += -DSIG_KO
 endif
 BIN_LDFLAGS += -Wl,-Tdpu.lds
 
-all:	dpu  host
+all:	dpu  host app
 ifeq ($(WITH_DYNAMIC_LIBS),1)
 # If the user asked for dynamic libraries, compile versions of our binaries against them
 all:	nn_example_dyn fp_example_dyn curve_basic_examples_dyn curve_ecdh_dyn
 endif
 
 dpu:
-	$(DPU_CC) $(BIN_CFLAGS) ecdsa_dpu.c $(ROOT_DIR)/src/external_deps/rand.c  $(LIBSIGN) $(BIN_LDFLAGS) -o ecdsa_dpu
+	$(DPU_CC) $(BIN_CFLAGS) ecdsa_dpu.c $(ROOT_DIR)/src/external_deps/rand.c dpu_jump.c  $(LIBSIGN) $(BIN_LDFLAGS) -o ecdsa_dpu
+	llvm-objdump -xS  ecdsa_dpu > ecdsa_dpu.objdump
 
 host:
 	$(HOST_CC) $(HOST_CFLAGS) ecdsa_host.c $(HOST_LDFLAGS) -o ecdsa_host
 
+app:
+	$(DPU_CC) $(BIN_CFLAGS) hello_word.c $(BIN_LDFLAGS) -o hello_word_dpu
+	llvm-objcopy -O binary --only-section=.text hello_word_dpu hello_word_dpu.text
+	llvm-objcopy -O binary --only-section=.data hello_word_dpu hello_word_dpu.data
+
 clean:
-	@rm -f ecdsa_dpu ecdsa_host
+	@rm -f ecdsa_dpu  ecdsa_dpu.objdump ecdsa_host  hello_word_dpu  hello_word_dpu.text hello_word_dpu.data
 
 .PHONY: all clean

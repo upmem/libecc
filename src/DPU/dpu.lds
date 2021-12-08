@@ -16,7 +16,8 @@
  */
 ENTRY(__bootstrap)
 MEMORY {
-    iram (rx) : ORIGIN = 0x80000000, LENGTH = 64K
+    iram (rx) : ORIGIN = 0x80000000, LENGTH = 32512
+    iram_last (rx) : ORIGIN = 0x80007F00, LENGTH = 256
     mram (wa) : ORIGIN = 0x08000000, LENGTH = 64M
     wram (wa) : ORIGIN = 0x00000000, LENGTH = 64K
     atomic (r) : ORIGIN = 0xF0000000, LENGTH = 256
@@ -26,11 +27,15 @@ SECTIONS
   /*
    * Merge every text section into .text.
    */
+    __sys_dpu_iram_start = .;
   .text : {
     *(.text.__bootstrap)
     *(.text)
     *(.text.*)
   } > iram
+
+  .text_last : {
+  } > iram_last
 
   /*
    * Atomic bits 'allocator'
@@ -45,6 +50,7 @@ SECTIONS
    * Locate every other section as data.
    */
   .data : {
+    __sys_dpu_wram_start = .;
     KEEP(*(.data.__sys_zero))
     . += MAX(8, .);
     /* WRAM accessible using loads and stores with immediate 11-bit offsets */

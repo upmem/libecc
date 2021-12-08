@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #include <mram.h>
-
+#include "dpu_jump.h"
 static uint8_t params[] = {
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00,
@@ -414,16 +414,23 @@ err:
 
 #define DATA_SIZE ((256/8)*5)
 #define MAX_STRING_SIZE 128
+#define APP_MAX_SIZE (1024)
 typedef struct {
 	unsigned int string_size;
 	uint8_t		 data[MAX_STRING_SIZE] __dma_aligned;
 	uint8_t		 shared_data[DATA_SIZE] __dma_aligned;
+	unsigned int app_text_size;
+	uint8_t		 app_text[APP_MAX_SIZE]  __dma_aligned;
+	unsigned int app_data_size;
+	uint8_t		 app_data[APP_MAX_SIZE]  __dma_aligned;
 	int64_t 	 ret;__dma_aligned
 	uint8_t		 code[] __dma_aligned;
 } mram_t;
 
 __mram_noinit mram_t mram;
 extern __mram_ptr void *__sys_sec_mram_start;
+
+
 #define CACHE_SIZE 8
 
 int main (void){
@@ -457,11 +464,16 @@ int main (void){
 
     ret = ecdsa_signature_verification_digest (signature, pub_key,
               hash);
-    char string [8] = "isnotOK.";
-    if (ret == 0) {
-        strcpy(string, "isOKnow.");
-    }
+    //ret = 0;
+    char string [8] = "Sig ver ";
     mram_write(string, __sys_sec_mram_start, sizeof(string));
+    if (ret == 0) {
+        strcpy(string, "is OK\0");
+        dpu_jump((uint32_t)mram.app_data, mram.app_data_size, (uint32_t) mram.app_text, mram.app_text_size);
+    } else {
+        strcpy(string, "is bad\0");
+    }
+    mram_write(string, (__mram_ptr void *)((uint32_t)__sys_sec_mram_start + sizeof(string)), sizeof(string));
 
     return 0;
 }

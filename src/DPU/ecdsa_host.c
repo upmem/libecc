@@ -23,6 +23,8 @@
 #ifndef DPU_BINARY
 #define DPU_BINARY "./ecdsa_dpu"
 #endif
+#define APP_TEXT_BINARY "./hello_word_dpu.text"
+#define APP_DATA_BINARY "./hello_word_dpu.data"
 
 const uint8_t public_key[] = {
     0xd8, 0x14, 0x7d, 0x49, 0xe0, 0x7c, 0x32, 0x66,
@@ -69,11 +71,15 @@ extern int usleep (__useconds_t __useconds);
 
 #define DATA_SIZE ((256/8)*5)
 #define MAX_STRING_SIZE 128
-
+#define APP_MAX_SIZE (1024)
 typedef struct {
 	unsigned int string_size;
 	uint8_t		 data[MAX_STRING_SIZE] __dma_aligned;
 	uint8_t		 shared_data[DATA_SIZE] __dma_aligned;
+	unsigned int app_text_size;
+	uint8_t		 app_text[APP_MAX_SIZE]  __dma_aligned;
+	unsigned int app_data_size;
+	uint8_t		 app_data[APP_MAX_SIZE]  __dma_aligned;
 	int64_t 	 ret;__dma_aligned
 	uint8_t		 code[] __dma_aligned;
 } mram_t;
@@ -88,7 +94,31 @@ static void prepare_data(mram_t *area)
 #else
 	memcpy(&area->shared_data[sizeof(public_key) + sizeof(calculated_hash)], signature_ko, sizeof(signature_ko));
 #endif
+	int fdbin = open(APP_TEXT_BINARY,O_RDONLY);
+	area->app_text_size = read(fdbin, area->app_text, APP_MAX_SIZE);
+	close(fdbin);
+	fdbin = open(APP_DATA_BINARY,O_RDONLY);
+	area->app_data_size = read(fdbin, area->app_data, APP_MAX_SIZE);
+	close(fdbin);
 	area->ret = ~0;
+
+/*	printf("======================= Display APP text =======================\n");
+	for (uint32_t i=0; i<area->app_text_size; i++) {
+		printf ("0x%X ", area->app_text[i]);
+		if (i%32 == 0) {
+			printf("\n");
+		}
+	}
+	printf("\n");
+    printf("======================= Display APP data =======================\n");
+	for (uint32_t i=0; i<area->app_data_size; i++) {
+		printf ("0x%X ", area->app_data[i]);
+		if (i%32 == 0) {
+			printf("\n");
+		}
+	}
+	printf("\n");
+*/
 }
 
 static void print_secure(int fd)
@@ -152,7 +182,8 @@ int main(void)
 		printf("Dpu load returned %ld\n", params.ret0);
 	}
 
-	sleep(20);
+	/* Needed as polling doesn't work */
+	sleep(15);
 	// Poll DPU1
 	params.arg1 = (uint64_t)area1;
 	retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
@@ -161,17 +192,17 @@ int main(void)
 	} else {
 		printf("Dpu %p status is %ld %ld\n", area1, params.ret0, params.ret1);
 	}
+	printf("are1->ret %ld\n", area1->ret);
 
 	// Naive test for MRAM mux control
-	params.arg1 = (uint64_t)area1;
+/*	params.arg1 = (uint64_t)area1;
 	retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_MRAM, &params);
 	if ( retval < 0 ) {
 		perror("Failed to get mram");
 	} else {
 		printf("Dpu %p unmuxed its MRAM\n", area1);
 	}
-	printf("are1->ret %ld\n", area1->ret);
-
+*/
 
 	// Poll DPU2
 	params.arg1 = (uint64_t)area2;
