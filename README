@@ -1,4 +1,8 @@
-ECDSA signature verification
+
+Install SDK if needed
+    dpkg -i upmem_2019.4.0_arm64.deb
+
+ECDSA signature verification (usecases/libecc)
 
     source /usr/upmem_env.sh hw && modprobe pim
 

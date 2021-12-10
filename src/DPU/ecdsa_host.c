@@ -86,8 +86,10 @@ static void prepare_data(mram_t *area)
 	memcpy(area->sig_data, public_key, sizeof(public_key));
 	memcpy(&area->sig_data[sizeof(public_key)], calculated_hash, sizeof(calculated_hash));
 #ifndef SIG_KO
+	printf("Sharing good signature\n");
 	memcpy(&area->sig_data[sizeof(public_key) + sizeof(calculated_hash)], signature_ok, sizeof(signature_ok));
 #else
+	printf("Sharing wrong signature\n");
 	memcpy(&area->sig_data[sizeof(public_key) + sizeof(calculated_hash)], signature_ko, sizeof(signature_ko));
 #endif
 	/* Copying user application code */
