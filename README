@@ -20,3 +20,18 @@ ECDSA signature verification (usecases/libecc)
 
     Execute the DPU binary
     cd src/DPU/ && ./ecdsa_host  && cd -
+
+
+Generate signature data (public key, hash, signature with OPENSSL) to be put in user_sig_data.h:
+    Generata private key in PEM format
+	openssl ecparam -name prime256v1 -genkey -out ec-prime256v1-priv-key.pem
+
+    Generate public key (text) from private key (remove the initial 0x4)
+	openssl ec -in ec-prime256v1-priv-key.pem -text -noout  > public_key.txt
+
+    Generate SHA-256
+	openssl dgst -hex -c -sha256 hello_word_dpu.text > hash.txt
+
+    Generate the signature (remove 3046 then 022100 before each coordinate - if not present discard and generate again)
+	openssl dgst -sha256 -sign ec-prime256v1-priv-key.pem hello_word_dpu.text > signature.hex
+	hexdump -v -e '/1 "%02X"' < signature.hex > signature.txt
