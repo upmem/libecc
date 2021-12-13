@@ -25,17 +25,17 @@ all:	nn_example_dyn fp_example_dyn curve_basic_examples_dyn curve_ecdh_dyn
 endif
 
 app:
-	$(DPU_CC) $(BIN_CFLAGS) hello_word.c $(BIN_LDFLAGS) -o hello_word_dpu
-	$(DPU_OBJCPY) -O binary --only-section=.text hello_word_dpu hello_word_dpu.text
-	$(DPU_OBJCPY) -O binary --only-section=.data hello_word_dpu hello_word_dpu.data
+	$(DPU_CC) $(BIN_CFLAGS) hello_world.c $(BIN_LDFLAGS) -o hello_world_dpu
+	$(DPU_OBJCPY) -O binary --only-section=.text hello_world_dpu hello_world_dpu.text
+	$(DPU_OBJCPY) -O binary --only-section=.data hello_world_dpu hello_world_dpu.data
     #Generata private key in PEM format
 	#openssl ecparam -name prime256v1 -genkey -out ec-prime256v1-priv-key.pem
     #Generate public key (text) from private key (remove the initial 0x4)
 	#openssl ec -in ec-prime256v1-priv-key.pem -text -noout  > public_key.txt
     #Generate SHA-256
-	#openssl dgst -hex -c -sha256 hello_word_dpu.text > hash.txt
+	#openssl dgst -hex -c -sha256 hello_world_dpu.text > hash.txt
     #Generate the signature (remove 3046 then 022100 before each coordinate - if not preset discard the signature)
-	#openssl dgst -sha256 -sign ec-prime256v1-priv-key.pem hello_word_dpu.text > signature.hex
+	#openssl dgst -sha256 -sign ec-prime256v1-priv-key.pem hello_world_dpu.text > signature.hex
 	#hexdump -v -e '/1 "%02X"' < signature.hex > signature.txt
 
 host:
@@ -46,6 +46,6 @@ dpu:
 	$(DPU_OBJDUMP) -xS  ecdsa_dpu > ecdsa_dpu.objdump
 
 clean:
-	@rm -f ecdsa_dpu  ecdsa_dpu.objdump ecdsa_host  hello_word_dpu  hello_word_dpu.text hello_word_dpu.data ec-secp256k1-priv-key.pem public_key.txt hash.txt signature.hex signature.txt
+	@rm -f ecdsa_dpu  ecdsa_dpu.objdump ecdsa_host  hello_world_dpu  hello_world_dpu.text hello_world_dpu.data ec-secp256k1-priv-key.pem public_key.txt hash.txt signature.hex signature.txt
 
 .PHONY: all clean

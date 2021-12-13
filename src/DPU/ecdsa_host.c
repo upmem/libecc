@@ -22,8 +22,8 @@
 #define DPU_CLUSTER_MEMORY_SIZE (64U<<20)
 
 #define DPU_BINARY "./ecdsa_dpu"
-#define APP_TEXT_BINARY "./hello_word_dpu.text"
-#define APP_DATA_BINARY "./hello_word_dpu.data"
+#define APP_TEXT_BINARY "./hello_world_dpu.text"
+#define APP_DATA_BINARY "./hello_world_dpu.data"
 
 extern int usleep (__useconds_t __useconds);
 
