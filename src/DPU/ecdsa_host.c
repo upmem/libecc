@@ -18,6 +18,9 @@
 #include <alloca.h>
 #include "user_sig_data.h"
 #include "pim.h"
+#define __dma_aligned __attribute__((aligned(8)))
+#include "ecdsa.h"
+
 
 #define DPU_CLUSTER_MEMORY_SIZE (64U<<20)
 
@@ -27,26 +30,19 @@
 
 extern int usleep (__useconds_t __useconds);
 
-#define __dma_aligned __attribute__((aligned(8)))
-
-#define SIG_DATA_SIZE ((256/8)*5)
-#define APP_MAX_SIZE (1024)
-typedef struct {
-	uint8_t		 sig_data[SIG_DATA_SIZE] __dma_aligned;
-	unsigned int app_text_size;
-	uint8_t		 app_text[APP_MAX_SIZE]  __dma_aligned;
-	unsigned int app_data_size;
-	uint8_t		 app_data[APP_MAX_SIZE]  __dma_aligned;
-	uint8_t		 code[] __dma_aligned;
-} mram_t;
 
 static void prepare_data(mram_t *area)
 {
 	int fdbin;
+	area->dpu_policy = DPU_POLICY_VERIFY_AND_JUMP;
 	/* Copying signature data */
 	memcpy(area->sig_data, public_key, sizeof(public_key));
 	memcpy(&area->sig_data[sizeof(public_key)], calculated_hash, sizeof(calculated_hash));
 	memcpy(&area->sig_data[sizeof(public_key) + sizeof(calculated_hash)], signature, sizeof(signature));
+#ifdef SIG_KO
+	memset(&area->sig_data[sizeof(public_key) + sizeof(calculated_hash)], 0, 1);
+#endif
+
 	/* Copying user application code */
 	fdbin = open(APP_TEXT_BINARY,O_RDONLY);
 	area->app_text_size = read(fdbin, area->app_text, APP_MAX_SIZE);
@@ -74,7 +70,7 @@ int main(void)
 	mram_t *area1, *area2;
 	pim_params_t params;
 	int retval;
-	int fdpu, fdbin, readb;
+	int fdpu, fdbin, readb, cnt =10;
 
 	// Open pim node
 	fdpu = open("/dev/pim", O_RDWR);
@@ -122,30 +118,37 @@ int main(void)
 		printf("Dpu load returned %ld\n", params.ret0);
 	}
 
-	// Poll DPU1
-	params.arg1 = (uint64_t)area1;
-	do {
-		retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
-		if (retval < 0 ) {
-			perror("Failed to poll pim");
-			break;
-		}
-	} while (params.ret1 == 1);
-	printf("Dpu %p status is %ld %ld\n", area1, params.ret0, params.ret1);
+	/* Polling is not working */
+	sleep(20);
+    // Poll DPU1
+    params.arg1 = (uint64_t)area1;
+    do {
+        usleep(1000);
+        retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
+        if (retval < 0 ) {
+            perror("Failed to poll pim");
+            break;
+        }
+        cnt --;
+    } while ((params.ret1 == 1) && (cnt > 0));
+    printf("Dpu %p status is %ld %ld\n", area1, params.ret0, params.ret1);
 
-	// Poll DPU2
-	params.arg1 = (uint64_t)area2;
-	do {
-		retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
-		if ( retval < 0 ) {
-			perror("Failed to poll pim");
-			break;
-		}
-	}
-	while (params.ret1 == 1);
-	printf("Dpu %p status is %ld %ld\n", area2, params.ret0, params.ret1);
+    // Poll DPU2
+    cnt = 10;
+    params.arg1 = (uint64_t)area2;
+    do {
+        usleep(1000);
+        retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
+        if ( retval < 0 ) {
+            perror("Failed to poll pim");
+            break;
+        }
+        cnt --;
+    } while ((params.ret1 == 1) && (cnt > 0));
+    printf("Dpu %p status is %ld %ld\n", area2, params.ret0, params.ret1);
 
 	print_secure(fdpu);
+	printf("Verification status %ld %ld\n", area1->verification_status, area2->verification_status);
 
 	// Exit gracefully
 	close(fdpu);
