@@ -70,7 +70,7 @@ int main(void)
     mram_t *area1, *area2;
     pim_params_t params;
     int retval;
-    int fdpu, fdbin, readb, cnt =10;
+    int fdpu, fdbin, readb;
 
     // Open pim node
     fdpu = open("/dev/pim", O_RDWR);
@@ -118,33 +118,26 @@ int main(void)
         printf("Dpu load returned %ld\n", params.ret0);
     }
 
-    /* Polling is not working */
-    sleep(20);
     // Poll DPU1
-    params.arg1 = (uint64_t)area1;
     do {
-        usleep(1000);
+        params.arg1 = (uint64_t)area1;
         retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
-        if (retval < 0 ) {
+        if (retval !=0 ) {
             perror("Failed to poll pim");
             break;
         }
-        cnt --;
-    } while ((params.ret1 == 1) && (cnt > 0));
+    } while (params.ret1 == 1);
     printf("Dpu %p status is %ld %ld\n", area1, params.ret0, params.ret1);
 
     // Poll DPU2
-    cnt = 10;
-    params.arg1 = (uint64_t)area2;
     do {
-        usleep(1000);
+        params.arg1 = (uint64_t)area2;
         retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
-        if ( retval < 0 ) {
+        if ( retval != 0 ) {
             perror("Failed to poll pim");
             break;
         }
-        cnt --;
-    } while ((params.ret1 == 1) && (cnt > 0));
+    } while (params.ret1 == 1);
     printf("Dpu %p status is %ld %ld\n", area2, params.ret0, params.ret1);
 
     print_secure(fdpu);
