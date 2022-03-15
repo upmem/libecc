@@ -24,7 +24,8 @@
 
 #define DPU_CLUSTER_MEMORY_SIZE (64U<<20)
 
-#define DPU_BINARY "./ecdsa_dpu"
+#define DPU_BINARY_ECDSA "./ecdsa_dpu"
+#define DPU_BINARY_HASH "./ecdsa_dpu_hash"
 #define APP_TEXT_BINARY "./hello_world_dpu.text"
 #define APP_DATA_BINARY "./hello_world_dpu.data"
 
@@ -37,7 +38,7 @@ static void prepare_data(mram_t *area)
     area->dpu_policy = DPU_POLICY_VERIFY_AND_JUMP;
     /* Copying signature data */
     memcpy(area->sig_data, public_key, sizeof(public_key));
-    memcpy(&area->sig_data[sizeof(public_key)], calculated_hash, sizeof(calculated_hash));
+    //memcpy(&area->sig_data[sizeof(public_key)], calculated_hash, sizeof(calculated_hash));
     memcpy(&area->sig_data[sizeof(public_key) + sizeof(calculated_hash)], signature, sizeof(signature));
 #ifdef SIG_KO
     memset(&area->sig_data[sizeof(public_key) + sizeof(calculated_hash)], 0, 1);
@@ -91,16 +92,72 @@ int main(void)
         prepare_data(area2);
     }
 
-    // Copy DPU program to MRAM
-    fdbin = open(DPU_BINARY,O_RDONLY);
+    // Copy DPU HASH program to MRAM
+    fdbin = open(DPU_BINARY_HASH,O_RDONLY);
     if (fdbin < 0) {
-        perror("Failed to open DPU_BINARY");
+        perror("Failed to open DPU_BINARY_HASH");
         exit(EXIT_FAILURE);
     }
 
     readb = read(fdbin, area1->code, (DPU_CLUSTER_MEMORY_SIZE/2));
     if (readb == 0) {
-        perror("DPU_BINARY is empty");
+        perror("DPU_BINARY_HASH is empty");
+        exit(EXIT_FAILURE);
+    }
+    lseek(fdbin, 0, SEEK_SET);
+    read(fdbin, area2->code, readb);
+    close(fdbin);
+
+    // Load and run DPU program
+    params.arg1 = (uint64_t)(area1->code);
+    params.arg2 = (uint64_t)(area2->code);
+    retval = ioctl(fdpu, PIM_IOCTL_LOAD_DPU, &params);
+    if (retval < 0 ) {
+        perror("Failed to control pim");
+        exit(EXIT_FAILURE);
+    } else {
+        printf("Dpu load returned %ld\n", params.ret0);
+    }
+
+    // Poll DPU1
+    do {
+        params.arg1 = (uint64_t)area1;
+        retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
+        if (retval !=0 ) {
+            perror("Failed to poll pim");
+            break;
+        }
+    } while (params.ret1 == 1);
+    printf("Dpu %p status is %ld %ld\n", area1, params.ret0, params.ret1);
+
+    // Poll DPU2
+    do {
+        params.arg1 = (uint64_t)area2;
+        retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
+        if ( retval != 0 ) {
+            perror("Failed to poll pim");
+            break;
+        }
+    } while (params.ret1 == 1);
+    printf("Dpu %p status is %ld %ld\n", area2, params.ret0, params.ret1);
+
+    if (memcmp(&area1->sig_data[P256_PUB_KEY_SIZE], calculated_hash, sizeof(calculated_hash)) !=0 ){
+        printf("#### Error DPU hash doesn't match the expected value\n");
+    } else {
+        printf("#### DPU hash all good!\n");
+    }
+    printf("debug_1 0x%lx debug_2 0x%lx debug_3 0x%lx \n", area1->debug_1, area1->debug_2, area1->debug_3);
+
+    // Copy DPU ECDSA program to MRAM
+    fdbin = open(DPU_BINARY_ECDSA,O_RDONLY);
+    if (fdbin < 0) {
+        perror("Failed to open DPU_BINARY_ECDSA");
+        exit(EXIT_FAILURE);
+    }
+
+    readb = read(fdbin, area1->code, (DPU_CLUSTER_MEMORY_SIZE/2));
+    if (readb == 0) {
+        perror("DPU_BINARY_ECDSA is empty");
         exit(EXIT_FAILURE);
     }
     lseek(fdbin, 0, SEEK_SET);
@@ -142,7 +199,6 @@ int main(void)
 
     print_secure(fdpu);
     printf("Verification status %ld %ld\n", area1->verification_status, area2->verification_status);
-
     // Exit gracefully
     close(fdpu);
     exit(EXIT_SUCCESS);
