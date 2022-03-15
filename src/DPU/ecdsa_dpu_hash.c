@@ -1,0 +1,17 @@
+#include "libsig.h"
+#include <stdio.h>
+#include <string.h>
+
+#include <mram.h>
+#include "ecdsa.h"
+
+__mram_noinit mram_t mram;
+extern __mram_ptr void *__sys_sec_mram_start;
+
+int main (void){
+    __dma_aligned uint8_t out_hash[SHA256_DIGEST_SIZE];
+    sha256((const u8 *)(uint32_t) mram.app_text, mram.app_text_size, (u8 *)out_hash);
+
+    mram_write(out_hash, &mram.sig_data[P256_PUB_KEY_SIZE], SHA256_DIGEST_SIZE);
+    return 0;
+}
