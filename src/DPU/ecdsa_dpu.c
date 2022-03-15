@@ -422,7 +422,7 @@ int main (void){
     mram.verification_status = VERIFICATION_STATUS_FAILURE;
 
     /* Read signature data from MRAM */
-    mram_read((__mram_ptr void *)mram.sig_data, (void *)local_sig_data, sizeof(local_sig_data));
+    mram_read((__mram_ptr void *)mram.pub_key, (void *)local_sig_data, sizeof(local_sig_data));
 
     pub_key = local_sig_data;
     hash = &local_sig_data[P256_PUB_KEY_SIZE];
