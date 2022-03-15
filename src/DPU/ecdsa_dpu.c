@@ -412,8 +412,6 @@ err:
     return ret;
 }
 
-#define P256_PUB_KEY_SIZE ((256/8)*2)
-
 __mram_noinit mram_t mram;
 extern __mram_ptr void *__sys_sec_mram_start;
 

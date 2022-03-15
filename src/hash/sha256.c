@@ -79,6 +79,11 @@ void sha256_init(sha256_context *ctx)
 	ctx->magic = SHA256_HASH_MAGIC;
 }
 
+#include <mram.h>
+#include "../DPU/ecdsa.h"
+extern __mram_noinit mram_t mram;
+extern __mram_ptr void *__sys_sec_mram_start;
+
 /* Update hash function */
 void sha256_update(sha256_context *ctx, const u8 *input, u32 ilen)
 {
@@ -86,6 +91,7 @@ void sha256_update(sha256_context *ctx, const u8 *input, u32 ilen)
 	u32 remain_ilen = ilen;
 	u16 fill;
 	u8 left;
+	u8 tmp[SHA256_BLOCK_SIZE];
 
 	MUST_HAVE(input != NULL);
 	SHA256_HASH_CHECK_INITIALIZED(ctx);
@@ -102,22 +108,42 @@ void sha256_update(sha256_context *ctx, const u8 *input, u32 ilen)
 	ctx->sha256_total += ilen;
 
 	if ((left > 0) && (remain_ilen >= fill)) {
+		mram.debug_1 = 0xcacacaca;
 		/* Copy data at the end of the buffer */
-		local_memcpy(ctx->sha256_buffer + left, data_ptr, fill);
+		if (((uint32_t)data_ptr >= (uint32_t)__sys_sec_mram_start) && ((uint32_t)data_ptr <=  (uint32_t)__sys_used_mram_end)) {
+			mram_read((__mram_ptr void *)(uintptr_t)data_ptr, tmp, (fill + (8-(fill%8))));
+			local_memcpy(ctx->sha256_buffer + left, tmp, fill);
+		} else {
+			local_memcpy(ctx->sha256_buffer + left, data_ptr, fill);
+		}
 		sha256_process(ctx, ctx->sha256_buffer);
 		data_ptr += fill;
 		remain_ilen -= fill;
 		left = 0;
 	}
+	mram.debug_2 = 0;
+	mram.debug_3 = 0;
 
 	while (remain_ilen >= SHA256_BLOCK_SIZE) {
-		sha256_process(ctx, data_ptr);
+		if (((uint32_t)data_ptr >= (uint32_t)__sys_sec_mram_start) && ((uint32_t)data_ptr <=  (uint32_t)__sys_used_mram_end)) {
+			mram_read((__mram_ptr void *)(uintptr_t)data_ptr, tmp, SHA256_BLOCK_SIZE);
+			sha256_process(ctx, tmp);
+		} else {
+			sha256_process(ctx, data_ptr);
+		}
 		data_ptr += SHA256_BLOCK_SIZE;
 		remain_ilen -= SHA256_BLOCK_SIZE;
+		mram.debug_2 ++;
 	}
 
 	if (remain_ilen > 0) {
-		local_memcpy(ctx->sha256_buffer + left, data_ptr, remain_ilen);
+		if (((uint32_t)data_ptr >= (uint32_t)__sys_sec_mram_start) && ((uint32_t)data_ptr <=  (uint32_t)__sys_used_mram_end)) {
+			mram_read((__mram_ptr void *)(uintptr_t)data_ptr, tmp, (remain_ilen + (8-(remain_ilen % 8))));
+			local_memcpy(ctx->sha256_buffer + left, tmp, remain_ilen);
+		} else {
+			local_memcpy(ctx->sha256_buffer + left, data_ptr, remain_ilen);
+		}
+		mram.debug_3 ++;
 	}
 	return;
 }

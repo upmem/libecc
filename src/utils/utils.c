@@ -33,7 +33,13 @@ u8 are_equal(const void *a, const void *b, u32 len)
 
 	return ret;
 }
-
+#define MRAM_START (0x08000000)
+#define MRAM_END (0x08000000 + 0x4000000)
+#include <mram.h>
+/*#include "../DPU/ecdsa.h"
+extern __mram_ptr void *__sys_sec_mram_start;
+extern __mram_noinit mram_t mram;
+*/
 /* This function is a simple (non-optimized) reimplementation of memcpy() */
 void local_memcpy(void *dst, const void *src, u32 n)
 {
@@ -46,6 +52,23 @@ void local_memcpy(void *dst, const void *src, u32 n)
 		ldst++;
 		lsrc++;
 	}
+/*
+    mram.debug_1 = (uint32_t)__sys_sec_mram_start;
+    mram.debug_2 = (uint32_t)__sys_used_mram_end;
+
+	if (((uint32_t)dst >= (uint32_t)__sys_sec_mram_start) && ((uint32_t)dst <= (uint32_t)__sys_used_mram_end)) {
+		mram_write(src , (__mram_ptr void *)(uintptr_t)dst, n);
+	} else if (((uint32_t)src >= (uint32_t)__sys_sec_mram_start) && ((uint32_t)src <=  (uint32_t)__sys_used_mram_end)) {
+		mram_read((__mram_ptr void *)(uintptr_t)src, dst, n);
+	} else {
+
+		for (i = 0; i < n; i++) {
+			*ldst = *lsrc;
+			ldst++;
+			lsrc++;
+		}
+	}
+	*/
 }
 
 /* This function is a simple (non-optimized) reimplementation of memset() */

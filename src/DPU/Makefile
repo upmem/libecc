@@ -44,6 +44,7 @@ host:
 dpu:
 	$(DPU_CC) $(BIN_CFLAGS) ecdsa_dpu.c $(ROOT_DIR)/src/external_deps/rand.c dpu_jump.c  $(LIBSIGN) $(BIN_LDFLAGS) -o ecdsa_dpu
 	$(DPU_OBJDUMP) -xS  ecdsa_dpu > ecdsa_dpu.objdump
+	$(DPU_CC) $(BIN_CFLAGS) ecdsa_dpu_hash.c $(LIBSIGN) $(BIN_LDFLAGS) -o ecdsa_dpu_hash
 
 clean:
 	@rm -f ecdsa_dpu  ecdsa_dpu.objdump ecdsa_host  hello_world_dpu  hello_world_dpu.text hello_world_dpu.data ec-secp256k1-priv-key.pem public_key.txt hash.txt signature.hex signature.txt
