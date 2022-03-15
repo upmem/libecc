@@ -41,12 +41,12 @@ static void prepare_data(mram_t *area)
     area->dpu_policy = DPU_POLICY_VERIFY_AND_JUMP;
 #endif
     /* Copying signature data */
-    memcpy(area->sig_data, public_key, sizeof(public_key));
+    memcpy(area->pub_key, public_key, sizeof(public_key));
     /* Hash is calculated and copied by the DPU */
-    //memcpy(&area->sig_data[sizeof(public_key)], calculated_hash, sizeof(calculated_hash));
-    memcpy(&area->sig_data[sizeof(public_key) + sizeof(calculated_hash)], signature, sizeof(signature));
+    //memcpy(area->hash, calculated_hash, sizeof(calculated_hash));
+    memcpy(area->signature, signature, sizeof(signature));
 #ifdef SIG_KO
-    memset(&area->sig_data[sizeof(public_key) + sizeof(calculated_hash)], 0, 1);
+    memset(area->signature, 0, 1);
 #endif
 
     /* Copying user application code */
@@ -97,7 +97,7 @@ int main(void)
         prepare_data(area2);
     }
 
-    // Copy DPU HASH program to MRAM
+    // Copy DPU HASH elf to MRAM
     fdbin = open(DPU_BINARY_HASH,O_RDONLY);
     if (fdbin < 0) {
         perror("Failed to open DPU_BINARY_HASH");
@@ -146,13 +146,19 @@ int main(void)
     } while (params.ret1 == 1);
     printf("Dpu %p status is %ld %ld\n", area2, params.ret0, params.ret1);
 
-    if (memcmp(&area1->sig_data[P256_PUB_KEY_SIZE], calculated_hash, sizeof(calculated_hash)) !=0 ){
+    if (memcmp(area1->hash, calculated_hash, sizeof(calculated_hash)) !=0 ){
         printf("#### Error DPU hash doesn't match the expected value\n");
     } else {
         printf("#### DPU hash all good!\n");
     }
 
-    // Copy DPU ECDSA program to MRAM
+    if (memcmp(area2->hash, calculated_hash, sizeof(calculated_hash)) !=0 ){
+        printf("#### Error DPU hash doesn't match the expected value\n");
+    } else {
+        printf("#### DPU hash all good!\n");
+    }
+
+    // Copy DPU ECDSA elf to MRAM
     fdbin = open(DPU_BINARY_ECDSA,O_RDONLY);
     if (fdbin < 0) {
         perror("Failed to open DPU_BINARY_ECDSA");
