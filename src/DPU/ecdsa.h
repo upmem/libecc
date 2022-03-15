@@ -1,6 +1,6 @@
 
 #define SIG_DATA_SIZE ((256/8)*5)
-#define APP_MAX_SIZE (1024)
+#define APP_MAX_SIZE (0x100000)
 #define P256_PUB_KEY_SIZE ((256/8)*2)
 
 typedef struct {
