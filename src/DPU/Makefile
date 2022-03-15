@@ -16,6 +16,9 @@ HOST_CFLAGS = $(WARNING_CFLAGS) -std=c11 `dpu-pkg-config --cflags dpu` -O2
 ifdef SIG_KO
 HOST_CFLAGS += -DSIG_KO
 endif
+ifdef VERIFY_ONLY
+HOST_CFLAGS += -DVERIFY_ONLY
+endif
 BIN_LDFLAGS += -Wl,-Tdpu.lds
 
 all: host app dpu
