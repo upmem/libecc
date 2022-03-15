@@ -1,4 +1,3 @@
-
 Install SDK if needed
     dpkg -i upmem_2020.2.1_arm64.deb
 
@@ -12,8 +11,11 @@ ECDSA signature verification (usecases/libecc)
     Compile the DPU and Host binary
     make 32  CC=dpu-upmem-dpurte-clang -C src/DPU/
 
-    Compile the DPU and Host binary wit a bad signature
+    Compile the DPU and Host binary with a bad signature
     make 32  CC=dpu-upmem-dpurte-clang SIG_KO=1 -C src/DPU/
+
+    Compile the DPU and Host to verify the image without jumping into it (e.g. u-boot signature verification)
+    make 32  CC=dpu-upmem-dpurte-clang VERIFY_ONLY=1 -C src/DPU/
 
     Execute the DPU binary
     cd src/DPU/ && ./ecdsa_host  && cd -

@@ -35,7 +35,11 @@ extern int usleep (__useconds_t __useconds);
 static void prepare_data(mram_t *area)
 {
     int fdbin;
+#ifdef VERIFY_ONLY
+    area->dpu_policy = DPU_POLICY_VERIFY_ONLY;
+#else
     area->dpu_policy = DPU_POLICY_VERIFY_AND_JUMP;
+#endif
     /* Copying signature data */
     memcpy(area->sig_data, public_key, sizeof(public_key));
     /* Hash is calculated and copied by the DPU */
