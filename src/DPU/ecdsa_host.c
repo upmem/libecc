@@ -38,6 +38,7 @@ static void prepare_data(mram_t *area)
     area->dpu_policy = DPU_POLICY_VERIFY_AND_JUMP;
     /* Copying signature data */
     memcpy(area->sig_data, public_key, sizeof(public_key));
+    /* Hash is calculated and copied by the DPU */
     //memcpy(&area->sig_data[sizeof(public_key)], calculated_hash, sizeof(calculated_hash));
     memcpy(&area->sig_data[sizeof(public_key) + sizeof(calculated_hash)], signature, sizeof(signature));
 #ifdef SIG_KO
@@ -146,7 +147,6 @@ int main(void)
     } else {
         printf("#### DPU hash all good!\n");
     }
-    printf("debug_1 0x%lx debug_2 0x%lx debug_3 0x%lx \n", area1->debug_1, area1->debug_2, area1->debug_3);
 
     // Copy DPU ECDSA program to MRAM
     fdbin = open(DPU_BINARY_ECDSA,O_RDONLY);

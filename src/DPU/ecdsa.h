@@ -4,9 +4,6 @@
 #define P256_PUB_KEY_SIZE ((256/8)*2)
 
 typedef struct {
-    uint64_t debug_1;
-    uint64_t debug_2;
-    uint64_t debug_3;
     unsigned int dpu_policy __dma_aligned;
     unsigned long int verification_status __dma_aligned;
     uint8_t		 sig_data[SIG_DATA_SIZE] __dma_aligned;
