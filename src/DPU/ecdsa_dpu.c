@@ -4,6 +4,7 @@
 
 #include <mram.h>
 #include "dpu_jump.h"
+#include "ecdsa.h"
 
 /* ECC P-256 context */
 static uint8_t params[] = {
@@ -411,31 +412,20 @@ err:
     return ret;
 }
 
-
-#define SIG_DATA_SIZE ((256/8)*5)
-#define APP_MAX_SIZE (1024)
 #define P256_PUB_KEY_SIZE ((256/8)*2)
-typedef struct {
-	uint8_t		 sig_data[SIG_DATA_SIZE] __dma_aligned;
-	unsigned int app_text_size;
-	uint8_t		 app_text[APP_MAX_SIZE]  __dma_aligned;
-	unsigned int app_data_size;
-	uint8_t		 app_data[APP_MAX_SIZE]  __dma_aligned;
-	uint8_t		 code[] __dma_aligned;
-} mram_t;
 
 __mram_noinit mram_t mram;
 extern __mram_ptr void *__sys_sec_mram_start;
 
-
 int main (void){
     __dma_aligned uint8_t local_sig_data[SIG_DATA_SIZE];
-    char string [8] = "Sig ver ";
     uint8_t *pub_key, *hash, *signature;
     ec_params *params_ptr = (ec_params *)&params;
+    mram.verification_status = VERIFICATION_STATUS_FAILURE;
 
     /* Read signature data from MRAM */
     mram_read((__mram_ptr void *)mram.sig_data, (void *)local_sig_data, sizeof(local_sig_data));
+
     pub_key = local_sig_data;
     hash = &local_sig_data[P256_PUB_KEY_SIZE];
     signature = &local_sig_data[P256_PUB_KEY_SIZE + SHA256_DIGEST_SIZE];
@@ -456,11 +446,10 @@ int main (void){
     params_ptr->ec_alpha_edwards.ctx = &params_ptr->ec_fp;
 
     if (ecdsa_signature_verification_digest (signature, pub_key, hash) == 0) {
-        dpu_jump((uint32_t)mram.app_data, mram.app_data_size, (uint32_t) mram.app_text, mram.app_text_size);
-    } else {
-        mram_write(string, __sys_sec_mram_start, sizeof(string));
-        strcpy(string, "is bad\0");
-        mram_write(string, (__mram_ptr void *)((uint32_t)__sys_sec_mram_start + sizeof(string)), sizeof(string));
+        mram.verification_status = VERIFICATION_STATUS_SUCCESS;
+        if (mram.dpu_policy == DPU_POLICY_VERIFY_AND_JUMP) {
+            dpu_jump((uint32_t)mram.app_data, mram.app_data_size, (uint32_t) mram.app_text, mram.app_text_size);
+        }
     }
 
     return 0;

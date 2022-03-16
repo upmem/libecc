@@ -6,9 +6,6 @@ extern void *__sys_dpu_wram_start;
 
 #pragma clang section text=".text_last"
 
-#define MRAM_BLOCK_SIZE (8)
-#define MRAM_TRANSFER_SIZE(size) (size + ((MRAM_BLOCK_SIZE - (size % MRAM_BLOCK_SIZE))%MRAM_BLOCK_SIZE))
-
 void dpu_jump(uint32_t app_data , int app_data_size, uint32_t app_text, int app_text_size){
     uint32_t iram_start = (uint32_t) __sys_dpu_iram_start;
     uint32_t iram_addr = (uint32_t) __sys_dpu_iram_start;
