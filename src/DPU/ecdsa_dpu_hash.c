@@ -6,7 +6,6 @@
 #include "ecdsa.h"
 
 __mram_noinit mram_t mram;
-extern __mram_ptr void *__sys_sec_mram_start;
 
 int main (void){
     __dma_aligned uint8_t out_hash[SHA256_SIZE];
