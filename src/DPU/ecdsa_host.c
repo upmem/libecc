@@ -123,8 +123,8 @@ int main(void)
 	}
 
 	// Poll DPU1
-	params.arg1 = (uint64_t)area1;
 	do {
+		params.arg1 = (uint64_t)area1;
 		retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
 		if (retval < 0 ) {
 			perror("Failed to poll pim");
@@ -134,8 +134,8 @@ int main(void)
 	printf("Dpu %p status is %ld %ld\n", area1, params.ret0, params.ret1);
 
 	// Poll DPU2
-	params.arg1 = (uint64_t)area2;
 	do {
+		params.arg1 = (uint64_t)area2;
 		retval = ioctl(fdpu, PIM_IOCTL_GET_DPU_STATUS, &params);
 		if ( retval < 0 ) {
 			perror("Failed to poll pim");
